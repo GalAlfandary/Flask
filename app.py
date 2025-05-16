@@ -32,6 +32,39 @@ jwt = JWTManager(app)
 
 @app.route('/register', methods=['POST'])
 def register():
+    """
+    Register a new user
+    ---
+    tags:
+      - Auth
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          id: Register
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: user@example.com
+            password:
+              type: string
+              example: mypassword
+            name:
+              type: string
+              example: John Doe
+    responses:
+      201:
+        description: User registered successfully
+      400:
+        description: Missing email or password
+      409:
+        description: User already exists
+    """
+
     data = request.get_json()
     
     # Validate input
@@ -60,6 +93,35 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
+    """
+    Login with email and password
+    ---
+    tags:
+      - Auth
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          id: Login
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: user@example.com
+            password:
+              type: string
+              example: mypassword
+    responses:
+      200:
+        description: Login successful, returns tokens and user info
+      400:
+        description: Missing email or password
+      401:
+        description: Invalid credentials
+    """
     data = request.get_json()
     
     # Validate input
@@ -90,6 +152,17 @@ def login():
 @app.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
+    """
+    Refresh access token using a valid refresh token
+    ---
+    tags:
+      - Auth
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: New access token
+    """
     current_user = get_jwt_identity()
     access_token = create_access_token(identity=current_user)
     
@@ -98,6 +171,19 @@ def refresh():
 @app.route('/verify', methods=['GET'])
 @jwt_required()
 def verify():
+    """
+    Verify current access token and return user info
+    ---
+    tags:
+      - Auth
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: User verified
+      404:
+        description: User not found
+    """
     current_user_id = get_jwt_identity()
     user = users_collection.find_one({'_id': ObjectId(current_user_id)})
     
@@ -115,6 +201,19 @@ def verify():
 @app.route('/user', methods=['GET'])
 @jwt_required()
 def get_user():
+    """
+    Verify current access token and return user info
+    ---
+    tags:
+      - Auth
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: User verified
+      404:
+        description: User not found
+    """
     current_user_id = get_jwt_identity()
     user = users_collection.find_one({'_id': ObjectId(current_user_id)})
     

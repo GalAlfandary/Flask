@@ -30,6 +30,44 @@ users_collection = db.users
 # JWT setup
 jwt = JWTManager(app)
 
+@app.route('/users', methods=['GET'])
+def get_users():
+    """
+    Get all users
+    ---
+    tags:
+      - Users
+    responses:
+      200:
+        description: A list of user records
+        schema:
+          type: object
+          properties:
+            users:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "60d5ec49f1c2b8a0f8e4e4b0"
+                  name:
+                    type: string
+                    example: "John Doe"
+                  email:
+                    type: string
+                    example: "john@example.com"
+    """
+    users = []
+    for user in users_collection.find():
+        users.append({
+            "id": str(user["_id"]),
+            "name": user.get("name", ""),
+            "email": user.get("email", "")
+        })
+
+    return jsonify({"users": users}), 200
+
 @app.route('/register', methods=['POST'])
 def register():
     """

@@ -132,7 +132,7 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     """
-    Login with email and password
+    Login with email and password, and track login location
     ---
     tags:
       - Auth
@@ -152,31 +152,53 @@ def login():
             password:
               type: string
               example: mypassword
+            location:
+              type: string
+              example: "Tel Aviv, Israel"
+              description: Location of the user (sent from client based on IP)
     responses:
       200:
         description: Login successful, returns tokens and user info
+        schema:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                email:
+                  type: string
+                name:
+                  type: string
       400:
         description: Missing email or password
       401:
         description: Invalid credentials
     """
     data = request.get_json()
-    
-    # Validate input
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'message': 'Email and password are required'}), 400
-    
-    # Find user
+
     user = users_collection.find_one({'email': data['email']})
-    
-    # Check if user exists and password is correct
     if not user or not check_password_hash(user['password'], data['password']):
         return jsonify({'message': 'Invalid credentials'}), 401
-    
-    # Create tokens
+
+    # ✅ Save location info
+    location = data.get('location', 'Unknown')
+    db.logins.insert_one({
+        "user_id": str(user['_id']),
+        "timestamp": datetime.utcnow(),
+        "location": location
+    })
+
     access_token = create_access_token(identity=str(user['_id']))
     refresh_token = create_refresh_token(identity=str(user['_id']))
-    
+
     return jsonify({
         'access_token': access_token,
         'refresh_token': refresh_token,

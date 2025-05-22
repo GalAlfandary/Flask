@@ -137,25 +137,35 @@ def login():
     tags:
       - Auth
     parameters:
-      - name: body
-        in: body
+      - in: body
+        name: credentials
         required: true
         schema:
           id: Login
           required:
             - email
             - password
+            - latitude
+            - longitude
           properties:
             email:
               type: string
               example: user@example.com
+              description: The user’s email address
             password:
               type: string
               example: mypassword
-            location:
-              type: string
-              example: "Tel Aviv, Israel"
-              description: Location of the user (sent from client based on IP)
+              description: The user’s password
+            latitude:
+              type: number
+              format: float
+              example: 32.0853
+              description: User’s latitude (from client-side IP lookup)
+            longitude:
+              type: number
+              format: float
+              example: 34.7818
+              description: User’s longitude (from client-side IP lookup)
     responses:
       200:
         description: Login successful, returns tokens and user info
@@ -176,21 +186,25 @@ def login():
                 name:
                   type: string
       400:
-        description: Missing email or password
+        description: Missing email, password, latitude or longitude
       401:
         description: Invalid credentials
     """
     data = request.get_json()
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({'message': 'Email and password are required'}), 400
+    if not data \
+       or not data.get('email') \
+       or not data.get('password') \
+       or 'latitude' not in data \
+       or 'longitude' not in data:
+        return jsonify({'message': 'Email, password, latitude and longitude are required'}), 400
 
     user = users_collection.find_one({'email': data['email']})
     if not user or not check_password_hash(user['password'], data['password']):
         return jsonify({'message': 'Invalid credentials'}), 401
 
-    # ✅ Save location info
-    lat = data.get('latitude', 0.0)
-    lng = data.get('longitude', 0.0)
+    # Save location info
+    lat = float(data['latitude'])
+    lng = float(data['longitude'])
     db.logins.insert_one({
         "user_id": str(user["_id"]),
         "timestamp": datetime.utcnow(),
@@ -211,24 +225,6 @@ def login():
         }
     }), 200
 
-@app.route('/refresh', methods=['POST'])
-@jwt_required(refresh=True)
-def refresh():
-    """
-    Refresh access token using a valid refresh token
-    ---
-    tags:
-      - Auth
-    security:
-      - Bearer: []
-    responses:
-      200:
-        description: New access token
-    """
-    current_user = get_jwt_identity()
-    access_token = create_access_token(identity=current_user)
-    
-    return jsonify({'access_token': access_token}), 200
 
 @app.route('/verify', methods=['GET'])
 @jwt_required()

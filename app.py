@@ -189,11 +189,13 @@ def login():
         return jsonify({'message': 'Invalid credentials'}), 401
 
     # ✅ Save location info
-    location = data.get('location', 'Unknown')
+    lat = data.get('latitude', 0.0)
+    lng = data.get('longitude', 0.0)
     db.logins.insert_one({
-        "user_id": str(user['_id']),
+        "user_id": str(user["_id"]),
         "timestamp": datetime.utcnow(),
-        "location": location
+        "latitude": lat,
+        "longitude": lng
     })
 
     access_token = create_access_token(identity=str(user['_id']))
@@ -287,6 +289,97 @@ def get_user():
             'name': user.get('name', '')
         }
     }), 200
+
+@app.route('/analytics', methods=['GET'])
+def get_analytics():
+    """
+    Get login analytics by location for the past hour
+    ---
+    tags:
+      - Analytics
+    responses:
+      200:
+        description: Summary of logins in the past hour by location
+        schema:
+          type: object
+          properties:
+            loginCount:
+              type: integer
+              example: 17
+              description: Total number of logins in the last hour
+            locations:
+              type: array
+              items:
+                type: object
+                properties:
+                  location:
+                    type: string
+                    example: "Tel Aviv, Israel"
+                  count:
+                    type: integer
+                    example: 5
+    """
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    logins = list(db.logins.find({"timestamp": {"$gte": one_hour_ago}}))
+
+    # count per unique (lat,lng) pair
+    buckets = {}
+    for login in logins:
+        key = (login["latitude"], login["longitude"])
+        buckets[key] = buckets.get(key, 0) + 1
+
+    locations = []
+    for (lat, lng), count in buckets.items():
+        locations.append({
+            "latitude": lat,
+            "longitude": lng,
+            "count": count
+        })
+
+    return jsonify({
+      "loginCount": len(logins),
+      "locations": locations
+    }), 200
+
+
+@app.route('/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """
+    Delete a user by ID
+    ---
+    tags:
+      - Users
+    parameters:
+      - name: user_id
+        in: path
+        type: string
+        required: true
+        description: The ID of the user to delete
+    responses:
+      200:
+        description: User deleted successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: User deleted successfully
+      404:
+        description: User not found
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: User not found
+    """
+    result = users_collection.delete_one({'_id': ObjectId(user_id)})
+
+    if result.deleted_count == 0:
+        return jsonify({'message': 'User not found'}), 404
+
+    return jsonify({'message': 'User deleted successfully'}), 200
+
 
 @app.route('/')
 def home():

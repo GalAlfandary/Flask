@@ -311,26 +311,42 @@ def get_analytics():
                   location:
                     type: string
                     example: "Tel Aviv, Israel"
+                    description: Human‐readable place name (sent by client)
                   count:
                     type: integer
                     example: 5
+                  latitude:
+                    type: number
+                    format: float
+                    example: 32.0853
+                  longitude:
+                    type: number
+                    format: float
+                    example: 34.7818
     """
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-    logins = list(db.logins.find({"timestamp": {"$gte": one_hour_ago}}))
+    logins = list(db.logins.find({ "timestamp": { "$gte": one_hour_ago } }))
 
-    # count per unique (lat,lng) pair
+    # bucket by the 'location' string if available, else by lat/lng tuple
     buckets = {}
     for login in logins:
-        key = (login["latitude"], login["longitude"])
-        buckets[key] = buckets.get(key, 0) + 1
+        loc_name = login.get("location") or f"{login.get('latitude',0)},{login.get('longitude',0)}"
+        lat = login.get("latitude", 0.0)
+        lng = login.get("longitude", 0.0)
 
-    locations = []
-    for (lat, lng), count in buckets.items():
-        locations.append({
-            "latitude": lat,
-            "longitude": lng,
-            "count": count
-        })
+        if loc_name not in buckets:
+            buckets[loc_name] = { "count": 0, "latitude": lat, "longitude": lng }
+        buckets[loc_name]["count"] += 1
+
+    locations = [
+        {
+          "location": loc_name,
+          "count": info["count"],
+          "latitude": info["latitude"],
+          "longitude": info["longitude"]
+        }
+        for loc_name, info in buckets.items()
+    ]
 
     return jsonify({
       "loginCount": len(logins),
